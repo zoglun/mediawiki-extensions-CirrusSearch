@@ -52,9 +52,9 @@ class Result extends SearchResult {
 			$this->mImage = wfFindFile( $this->mTitle );
 		}
 
-		$data = $result->getData();
+		$fields = $result->getFields();
 		// Not all results requested a word count. Just pretend we have none if so
-		$this->wordCount = isset( $data['text.word_count'] ) ? $data['text.word_count'] : 0;
+		$this->wordCount = isset( $fields['text.word_count'] ) ? $fields['text.word_count'] : 0;
 		$this->byteSize = ElasticsearchIntermediary::singleValue( $result, 'text_bytes' );
 		$this->timestamp = ElasticsearchIntermediary::singleValue( $result, 'timestamp' );
 		$this->timestamp = new MWTimestamp( $this->timestamp );
