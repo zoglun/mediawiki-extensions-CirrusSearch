@@ -343,6 +343,10 @@ $wgCirrusSearchCacheWarmers = array();
 // $wgCirrusSearchCacheWarmers[ 'content' ][] = 'batman';
 // $wgCirrusSearchCacheWarmers[ 'general' ][] = 'template:noble pipe';
 
+// Should Cirrus power Special:Random?  The result is truely random BUT it is
+// somewhat expensive to generate.
+$wgCirrusSearchPowerSpecialRandom = true;
+
 $includes = __DIR__ . "/includes/";
 $buildDocument = $includes . 'BuildDocument/';
 $maintenanceDir = $includes . 'Maintenance/';
