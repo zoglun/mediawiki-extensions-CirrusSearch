@@ -156,6 +156,9 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 		$maintenance->addOption( 'justCacheWarmers', 'Just validate that the cache warmers are correct ' .
 			'and perform no additional checking.  Use when you need to apply new cache warmers but ' .
 			"want to be sure that you won't apply any other changes at an inopportune time." );
+		$maintenance->addOption( 'justAllocation', 'Just validate the shard allocation settings.  Use ' .
+			"when you need to apply new cache warmers but want to be sure that you won't apply any other " .
+			'changes at an inopportune time.' );
 	}
 
 	public function execute() {
@@ -203,6 +206,12 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 
 			if ( $this->getOption( 'justCacheWarmers', false ) ) {
 				$this->validateCacheWarmers();
+				return;
+			}
+
+			if ( $this->getOption( 'justAllocation', false ) ) {
+				$shardAllocation = new \CirrusSearch\Maintenance\ShardAllocation( $this->getIndex(), $this );
+				$shardAllocation->validate();
 				return;
 			}
 
@@ -328,6 +337,9 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 			$this->getIndex()->getSettings()->set( array( 'auto_expand_replicas' => $this->getReplicaCount() ) );
 			$this->output( "corrected\n" );
 		}
+
+		$shardAllocation = new \CirrusSearch\Maintenance\ShardAllocation( $this->getIndex(), $this );
+		$shardAllocation->validate();
 	}
 
 	private function validateAnalyzers() {
@@ -372,7 +384,7 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 				"'experimental highlighter' plugin is not installed on all hosts.", 1 );
 		}
 
-		$requiredPageMappings = new MappingConfigBuilder(
+		$requiredPageMappings = new \CirrusSearch\Maintenance\MappingConfigBuilder(
 			$this->prefixSearchStartsWithAny, $this->phraseUseText,
 			$wgCirrusSearchOptimizeIndexForExperimentalHighlighter );
 		$requiredPageMappings = $requiredPageMappings->buildConfig();
@@ -683,7 +695,7 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 		) );
 
 		if ( $this->reindexProcesses > 1 ) {
-			$fork = new ReindexForkController( $this->reindexProcesses );
+			$fork = new \CirrusSearch\Maintenance\ReindexForkController( $this->reindexProcesses );
 			$forkResult = $fork->start();
 			// Forking clears the timeout so we have to reinstate it.
 			Connection::setTimeout( $wgCirrusSearchMaintenanceTimeout );
@@ -740,7 +752,7 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 			$filter = new Elastica\Filter\Script(
 				"(doc['_uid'].value.hashCode() & Integer.MAX_VALUE) % $children == $childNumber" );
 		}
-		$pageProperties = new MappingConfigBuilder(
+		$pageProperties = new \CirrusSearch\Maintenance\MappingConfigBuilder(
 			$this->prefixSearchStartsWithAny, $this->phraseUseText,
 			$wgCirrusSearchOptimizeIndexForExperimentalHighlighter );
 		$pageProperties = $pageProperties->buildConfig();
@@ -909,7 +921,8 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 	}
 
 	private function pickAnalyzer() {
-		$this->analysisConfigBuilder = new AnalysisConfigBuilder( $this->langCode, $this->availablePlugins );
+		$this->analysisConfigBuilder = new \CirrusSearch\Maintenance\AnalysisConfigBuilder(
+			$this->langCode, $this->availablePlugins );
 		$this->output( $this->indent . 'Picking analyzer...' .
 			$this->analysisConfigBuilder->getDefaultTextAnalyzerType() . "\n" );
 	}

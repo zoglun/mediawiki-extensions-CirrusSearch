@@ -210,7 +210,7 @@ $wgCirrusSearchWeights = array(
 	'redirect' => 30,
 	'category' => 16,
 	'heading' => 10,
-	'opening_text' => 8,
+	'opening_text' => 6,
 	'text' => 2,
 	'auxiliary_text' => 1,
 	'file_text' => 1,
@@ -371,13 +371,33 @@ $wgCirrusSearchCacheWarmers = array();
 // which most wikis will want. Edge cases will want to turn this off.
 $wgCirrusSearchBoostLinks = true;
 
-
 // Should Cirrus power Special:Random?  The result is truely random BUT it is
 // somewhat expensive to generate.
 $wgCirrusSearchPowerSpecialRandom = true;
 
+// Shard allocation settings. The include/exclude/require top level keys are
+// the type of rule to use, the names should be self explanatory. The values
+// are an array of keys and values of different rules to apply to an index.
+//
+// For example: if you wanted to make sure this index was only allocated to
+// servers matching a specific IP block, you'd do this:
+//    $wgCirrusSearchIndexAllocation['require'] = array( '_ip' => '192.168.1.*' );
+// Or let's say you want to keep an index off a given host:
+//    $wgCirrusSearchIndexAllocation['exclude'] = array( '_host' => 'badserver01' );
+//
+// Note that if you use anything other than the magic values of _ip, _name, _id
+// or _host it requires you to configure the host keys/values on your server(s)
+//
+// http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-allocation.html
+$wgCirrusSearchIndexAllocation = array(
+	'include' => array(),
+	'exclude' => array(),
+	'require' => array(),
+);
+
 $includes = __DIR__ . "/includes/";
 $buildDocument = $includes . 'BuildDocument/';
+$jobsDir = $includes . 'Job/';
 $maintenanceDir = $includes . 'Maintenance/';
 $sanity = $includes . 'Sanity/';
 $search = $includes . 'Search/';
@@ -392,39 +412,40 @@ $wgAutoloadClasses['CirrusSearch\BuildDocument\PageDataBuilder'] = $buildDocumen
 $wgAutoloadClasses['CirrusSearch\BuildDocument\PageTextBuilder'] = $buildDocument . 'PageTextBuilder.php';
 $wgAutoloadClasses['CirrusSearch\BuildDocument\ParseBuilder'] = $buildDocument . 'Builder.php';
 $wgAutoloadClasses['CirrusSearch\BuildDocument\RedirectsAndIncomingLinks'] = $buildDocument . 'RedirectsAndIncomingLinks.php';
-$wgAutoloadClasses['CirrusSearch\AnalysisConfigBuilder'] = $includes . 'AnalysisConfigBuilder.php';
 $wgAutoloadClasses['CirrusSearch\Connection'] = $includes . 'Connection.php';
-$wgAutoloadClasses['CirrusSearch\DeletePagesJob'] = $includes . 'DeletePagesJob.php';
 $wgAutoloadClasses['CirrusSearch\ElasticsearchIntermediary'] = $includes . 'ElasticsearchIntermediary.php';
-$wgAutoloadClasses['CirrusSearch\FancyTitleResultsType'] = $includes . 'ResultsType.php';
 $wgAutoloadClasses['CirrusSearch\ForceSearchIndex'] = __DIR__ . '/maintenance/forceSearchIndex.php';
 $wgAutoloadClasses['CirrusSearch\Hooks'] = $includes . 'Hooks.php';
-$wgAutoloadClasses['CirrusSearch\LinksUpdateJob'] = $includes . 'LinksUpdateJob.php';
-$wgAutoloadClasses['CirrusSearch\LinksUpdateSecondaryJob'] = $includes . 'LinksUpdateSecondaryJob.php';
-$wgAutoloadClasses['CirrusSearch\FullTextResultsType'] = $includes . 'ResultsType.php';
-$wgAutoloadClasses['CirrusSearch\IdResultsType'] = $includes . 'ResultsType.php';
-$wgAutoloadClasses['CirrusSearch\InterwikiResultsType'] = $includes . 'ResultsType.php';
 $wgAutoloadClasses['CirrusSearch\InterwikiSearcher'] = $includes . 'InterwikiSearcher.php';
-$wgAutoloadClasses['CirrusSearch\Job'] = $includes . 'Job.php';
+$wgAutoloadClasses['CirrusSearch\Job\Job'] = $jobsDir . 'Job.php';
+$wgAutoloadClasses['CirrusSearch\Job\DeletePages'] = $jobsDir . 'DeletePages.php';
+$wgAutoloadClasses['CirrusSearch\Job\LinksUpdate'] = $jobsDir . 'LinksUpdate.php';
+$wgAutoloadClasses['CirrusSearch\Job\LinksUpdateSecondary'] = $jobsDir . 'LinksUpdateSecondary.php';
+$wgAutoloadClasses['CirrusSearch\Job\MassIndex'] = $jobsDir . 'MassIndex.php';
+$wgAutoloadClasses['CirrusSearch\Job\OtherIndex'] = $jobsDir . 'OtherIndex.php';
+$wgAutoloadClasses['CirrusSearch\Maintenance\AnalysisConfigBuilder'] = $maintenanceDir . 'AnalysisConfigBuilder.php';
 $wgAutoloadClasses['CirrusSearch\Maintenance\CacheWarmers'] = $maintenanceDir . 'CacheWarmers.php';
 $wgAutoloadClasses['CirrusSearch\Maintenance\ChunkBuilder'] = $maintenanceDir . 'ChunkBuilder.php';
-$wgAutoloadClasses['CirrusSearch\MappingConfigBuilder'] = $includes . 'MappingConfigBuilder.php';
-$wgAutoloadClasses['CirrusSearch\MassIndexJob'] = $includes . 'MassIndexJob.php';
+$wgAutoloadClasses['CirrusSearch\Maintenance\ReindexForkController'] = $maintenanceDir . 'ReindexForkController.php';
+$wgAutoloadClasses['CirrusSearch\Maintenance\MappingConfigBuilder'] = $maintenanceDir . 'MappingConfigBuilder.php';
+$wgAutoloadClasses['CirrusSearch\Maintenance\ShardAllocation'] = $maintenanceDir . 'ShardAllocation.php';
 $wgAutoloadClasses['CirrusSearch\NearMatchPicker'] = $includes . 'NearMatchPicker.php';
 $wgAutoloadClasses['CirrusSearch\OtherIndexes'] = $includes . 'OtherIndexes.php';
-$wgAutoloadClasses['CirrusSearch\OtherIndexJob'] = $includes . 'OtherIndexJob.php';
-$wgAutoloadClasses['CirrusSearch\ReindexForkController'] = $includes . 'ReindexForkController.php';
-$wgAutoloadClasses['CirrusSearch\Result'] = $includes . 'Result.php';
-$wgAutoloadClasses['CirrusSearch\ResultSet'] = $includes . 'ResultSet.php';
-$wgAutoloadClasses['CirrusSearch\ResultsType'] = $includes . 'ResultsType.php';
 $wgAutoloadClasses['CirrusSearch\Sanity\Checker'] = $sanity . 'Checker.php';
 $wgAutoloadClasses['CirrusSearch\Sanity\NoopRemediator'] = $sanity . 'Remediator.php';
 $wgAutoloadClasses['CirrusSearch\Sanity\PrintingRemediator'] = $sanity . 'Remediator.php';
 $wgAutoloadClasses['CirrusSearch\Sanity\QueueingRemediator'] = $sanity . 'QueueingRemediator.php';
 $wgAutoloadClasses['CirrusSearch\Sanity\Remediator'] = $sanity . 'Remediator.php';
+$wgAutoloadClasses['CirrusSearch\Search\Escaper'] = $search . 'Escaper.php';
+$wgAutoloadClasses['CirrusSearch\Search\FancyTitleResultsType'] = $search . 'ResultsType.php';
 $wgAutoloadClasses['CirrusSearch\Search\Filters'] = $search . 'Filters.php';
+$wgAutoloadClasses['CirrusSearch\Search\FullTextResultsType'] = $search . 'ResultsType.php';
+$wgAutoloadClasses['CirrusSearch\Search\IdResultsType'] = $search . 'ResultsType.php';
+$wgAutoloadClasses['CirrusSearch\Search\InterwikiResultsType'] = $search . 'ResultsType.php';
+$wgAutoloadClasses['CirrusSearch\Search\Result'] = $search . 'Result.php';
+$wgAutoloadClasses['CirrusSearch\Search\ResultSet'] = $search . 'ResultSet.php';
+$wgAutoloadClasses['CirrusSearch\Search\ResultsType'] = $search . 'ResultsType.php';
 $wgAutoloadClasses['CirrusSearch\Searcher'] = $includes . 'Searcher.php';
-$wgAutoloadClasses['CirrusSearch\SearchEscaper'] = $includes . 'SearchEscaper.php';
 $wgAutoloadClasses['CirrusSearch\TitleResultsType'] = $includes . 'ResultsType.php';
 $wgAutoloadClasses['CirrusSearch\UpdateSearchIndexConfig'] = __DIR__ . '/maintenance/updateSearchIndexConfig.php';
 $wgAutoloadClasses['CirrusSearch\UpdateVersionIndex'] = __DIR__ . '/maintenance/updateVersionIndex.php';
@@ -451,7 +472,6 @@ $wgHooks[ 'SpecialSearchResultsPrepend' ][] = 'CirrusSearch\Hooks::onSpecialSear
 $wgHooks[ 'TitleMoveComplete' ][] = 'CirrusSearch\Hooks::onTitleMoveComplete';
 $wgHooks[ 'UnitTestsList' ][] = 'CirrusSearch\Hooks::onUnitTestsList';
 
-
 /**
  * i18n
  */
@@ -461,12 +481,12 @@ $wgExtensionMessagesFiles['CirrusSearch'] = __DIR__ . '/CirrusSearch.i18n.php';
 /**
  * Jobs
  */
-$wgJobClasses[ 'cirrusSearchDeletePages' ] = 'CirrusSearch\DeletePagesJob';
-$wgJobClasses[ 'cirrusSearchLinksUpdate' ] = 'CirrusSearch\LinksUpdateJob';
-$wgJobClasses[ 'cirrusSearchLinksUpdatePrioritized' ] = 'CirrusSearch\LinksUpdateJob';
-$wgJobClasses[ 'cirrusSearchLinksUpdateSecondary' ] = 'CirrusSearch\LinksUpdateSecondaryJob';
-$wgJobClasses[ 'cirrusSearchMassIndex' ] = 'CirrusSearch\MassIndexJob';
-$wgJobClasses[ 'cirrusSearchOtherIndex' ] = 'CirrusSearch\OtherIndexJob';
+$wgJobClasses[ 'cirrusSearchDeletePages' ] = 'CirrusSearch\Job\DeletePages';
+$wgJobClasses[ 'cirrusSearchLinksUpdate' ] = 'CirrusSearch\Job\LinksUpdate';
+$wgJobClasses[ 'cirrusSearchLinksUpdatePrioritized' ] = 'CirrusSearch\Job\LinksUpdate';
+$wgJobClasses[ 'cirrusSearchLinksUpdateSecondary' ] = 'CirrusSearch\Job\LinksUpdateSecondary';
+$wgJobClasses[ 'cirrusSearchMassIndex' ] = 'CirrusSearch\Job\MassIndex';
+$wgJobClasses[ 'cirrusSearchOtherIndex' ] = 'CirrusSearch\Job\OtherIndex';
 
 /**
  * Jenkins configuration required to get all the browser tests passing cleanly.

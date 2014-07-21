@@ -3,7 +3,11 @@
 namespace CirrusSearch;
 use Elastica;
 use \CirrusSearch;
+use \CirrusSearch\Search\Escaper;
 use \CirrusSearch\Search\Filters;
+use \CirrusSearch\Search\FullTextResultsType;
+use \CirrusSearch\Search\IdResultsType;
+use \CirrusSearch\Search\ResultsType;
 use \MWNamespace;
 use \PoolCounterWorkViaCallback;
 use \ProfileSection;
@@ -149,7 +153,7 @@ class Searcher extends ElasticsearchIntermediary {
 	private $highlightQuery = null;
 
 	/**
-	 * @var SearchEscaper escapes queries
+	 * @var Escaper escapes queries
 	 */
 	private $escaper;
 
@@ -180,7 +184,7 @@ class Searcher extends ElasticsearchIntermediary {
 		$this->limit = $limit;
 		$this->namespaces = $namespaces;
 		$this->indexBaseName = $index ?: wfWikiId();
-		$this->escaper = new SearchEscaper( $wgLanguageCode );
+		$this->escaper = new Escaper( $wgLanguageCode );
 	}
 
 	/**
@@ -219,6 +223,8 @@ class Searcher extends ElasticsearchIntermediary {
 	 * @return Status(mixed) status containing results defined by resultsType on success
 	 */
 	public function nearMatchTitleSearch( $search ) {
+		global $wgCirrusSearchAllFields;
+
 		$profiler = new ProfileSection( __METHOD__ );
 
 		self::checkTitleSearchRequestLength( $search );
@@ -228,7 +234,15 @@ class Searcher extends ElasticsearchIntermediary {
 		$this->highlightQuery = new \Elastica\Query\MultiMatch();
 		$this->highlightQuery->setQuery( $search );
 		$this->highlightQuery->setFields( array( 'title.near_match', 'redirect.title.near_match' ) );
-		$this->filters[] = new \Elastica\Filter\Query( $this->highlightQuery );
+		if ( $wgCirrusSearchAllFields[ 'use' ] ) {
+			// Inseat of using the highlight query we need to make one like it that uses the all_near_match field.
+			$allQuery = new \Elastica\Query\MultiMatch();
+			$allQuery->setQuery( $search );
+			$allQuery->setFields( array( 'all_near_match' ) );
+			$this->filters[] = new \Elastica\Filter\Query( $allQuery );
+		} else {
+			$this->filters[] = new \Elastica\Filter\Query( $this->highlightQuery );
+		}
 		$this->boostLinks = ''; // No boost
 
 		return $this->search( 'near_match', $search );
@@ -399,8 +413,7 @@ class Searcher extends ElasticsearchIntermediary {
 				}
 				$insensitive = !empty( $matches[ 'insensitive' ] );
 
-				// TODO highlighting but
-				//   https://github.com/wikimedia/search-highlighter/issues/2
+				// TODO highlighting but https://github.com/wikimedia/search-highlighter/issues/2
 
 				// The setAllowMutate call is documented to speed up operations but be thread unsafe.  You'd think
 				// that is ok because scripts are always executed in a single thread but it isn't ok.  It causes
@@ -426,17 +439,18 @@ if (sourceText == null) {
 }
 
 MVEL;
-				$filterDestination[] = new \Elastica\Filter\Script( array(
-					'script' => $script,
-					'params' => array(
+				$filterDestination[] = new \Elastica\Filter\Script( new \Elastica\Script(
+					$script,
+					array(
 						'pattern' => '.*(' . $matches[ 'pattern' ] . ').*',
 						'insensitive' => $insensitive,
-						// This null here creates a slot in which the script will shove
+						'language' => $wgLanguageCode,
+						// These null here creates a slot in which the script will shove
 						// an automaton while executing.
 						'automaton' => null,
 						'locale' => null,
-						'language' => $wgLanguageCode,
 					),
+					'mvel'
 				) );
 			}
 		);
@@ -507,6 +521,7 @@ MVEL;
 						$query->setDefaultOperator( 'AND' );
 						$query->setAllowLeadingWildcard( false );
 						$query->setFuzzyPrefixLength( 2 );
+						$query->setRewrite( 'top_terms_128' );
 						$filterDestination[] = new \Elastica\Filter\Query( $query );
 						$searchContainedSyntax = true;
 						return $keepText ? "$value " : '';
@@ -555,7 +570,7 @@ MVEL;
 			function ( $matches ) use ( $searcher ) {
 				$term = $searcher->fixupQueryStringPart( $matches[ 0 ][ 0 ] );
 				return array(
-					'escaped' => $searcher->switchSearchToExact( $term, true ),
+					'escaped' => $searcher->switchSearchToExact( $term, false ),
 					'nonAll' => $searcher->switchSearchToExact( $term, false ),
 				);
 			} );
@@ -564,6 +579,7 @@ MVEL;
 		wfProfileIn( __METHOD__ . '-escape' );
 		$escapedQuery = array();
 		$nonAllQuery = array();
+		$nearMatchQuery = array();
 		foreach ( $query as $queryPart ) {
 			if ( isset( $queryPart[ 'escaped' ] ) ) {
 				$escapedQuery[] = $queryPart[ 'escaped' ];
@@ -578,6 +594,7 @@ MVEL;
 				$fixed = $this->fixupQueryStringPart( $queryPart[ 'raw' ] );
 				$escapedQuery[] = $fixed;
 				$nonAllQuery[] = $fixed;
+				$nearMatchQuery[] = $queryPart[ 'raw' ];
 				continue;
 			}
 			wfLogWarning( 'Unknown query part:  ' . serialize( $queryPart ) );
@@ -586,6 +603,8 @@ MVEL;
 
 		// Actual text query
 		$queryStringQueryString = $this->fixupWholeQueryString( implode( ' ', $escapedQuery ) );
+		// Note that no escaping is required for near_match's match query.
+		$nearMatchQuery = implode( ' ', $nearMatchQuery );
 		if ( $queryStringQueryString !== '' ) {
 			if ( preg_match( '/(?:(?<!\\\\)[?*+~"!|-])|AND|OR|NOT/', $queryStringQueryString ) ) {
 				$this->searchContainedSyntax = true;
@@ -596,8 +615,10 @@ MVEL;
 			$fields = array_merge(
 				$this->buildFullTextSearchFields( 1, '.plain', true ),
 				$this->buildFullTextSearchFields( $wgCirrusSearchStemmedWeight, '', true ) );
-			$nearMatchFields = $this->buildFullTextSearchFields( $wgCirrusSearchNearMatchWeight, '.near_match', true );
-			$this->query = $this->buildSearchTextQuery( $fields, $nearMatchFields, $queryStringQueryString );
+			$nearMatchFields = $this->buildFullTextSearchFields( $wgCirrusSearchNearMatchWeight,
+				'.near_match', true );
+			$this->query = $this->buildSearchTextQuery( $fields, $nearMatchFields,
+				$queryStringQueryString, $nearMatchQuery );
 
 			// The highlighter doesn't know about the weightinging from the all fields so we have to send
 			// it a query without the all fields.  This swaps one in. 
@@ -806,7 +827,7 @@ MVEL;
 
 	/**
 	 * Powers full-text-like searches including prefix search.
-	 * @return Status(ResultSet|null|array(String),array) results, no results, or title results, or the query
+	 * @return Status(mixed) results from the query transformed by the resultsType
 	 */
 	private function search( $type, $for ) {
 		global $wgCirrusSearchMoreAccurateScoringMode;
@@ -1006,18 +1027,24 @@ MVEL;
 		return $nsCount !== $namespacesInIndexType;
 	}
 
-	private function buildSearchTextQuery( $fields, $nearMatchFields, $queryString ) {
+	private function buildSearchTextQuery( $fields, $nearMatchFields, $queryString, $nearMatchQuery ) {
 		global $wgCirrusSearchPhraseSlop;
 
-		// Build one query for the full text fields and one for the near match fields so that
-		// the near match analyzer doesn't confuse the full text analyzers.
-		$bool = new \Elastica\Query\Bool();
-		$bool->setMinimumNumberShouldMatch( 1 );
-		$bool->addShould( $this->buildSearchTextQueryForFields( $fields, $queryString,
-			$wgCirrusSearchPhraseSlop[ 'default' ] ) );
-		$bool->addShould( $this->buildSearchTextQueryForFields( $nearMatchFields, $queryString,
-			$wgCirrusSearchPhraseSlop[ 'default' ] ) );
-		return $bool;
+		$queryForMostFields = $this->buildSearchTextQueryForFields( $fields, $queryString,
+				$wgCirrusSearchPhraseSlop[ 'default' ] );
+		if ( $nearMatchQuery ) {
+			// Build one query for the full text fields and one for the near match fields so that
+			// the near match can run unescaped.
+			$bool = new \Elastica\Query\Bool();
+			$bool->setMinimumNumberShouldMatch( 1 );
+			$bool->addShould( $queryForMostFields );
+			$nearMatch = new \Elastica\Query\MultiMatch();
+			$nearMatch->setFields( $nearMatchFields );
+			$nearMatch->setQuery( $nearMatchQuery );
+			$bool->addShould( $nearMatch );
+			return $bool;
+		}
+		return $queryForMostFields;
 	}
 
 	private function buildSearchTextQueryForFields( $fields, $queryString, $phraseSlop ) {
@@ -1028,6 +1055,7 @@ MVEL;
 		$query->setDefaultOperator( 'AND' );
 		$query->setAllowLeadingWildcard( false );
 		$query->setFuzzyPrefixLength( 2 );
+		$query->setRewrite( 'top_terms_128' );
 		return $query;
 	}
 
@@ -1081,18 +1109,24 @@ MVEL;
 	public function buildFullTextSearchFields( $weight, $fieldSuffix, $allFieldAllowed ) {
 		global $wgCirrusSearchWeights,
 			$wgCirrusSearchAllFields;
-		$titleWeight = $weight * $wgCirrusSearchWeights[ 'title' ];
-		$redirectWeight = $weight * $wgCirrusSearchWeights[ 'redirect' ];
+
+		if ( $wgCirrusSearchAllFields[ 'use' ] && $allFieldAllowed ) {
+			if ( $fieldSuffix === '.near_match' ) {
+				// The near match fields can't shard a root field because field fields nead it -
+				// thus no suffix all.
+				return array( "all_near_match^${weight}" );
+			}
+			return array( "all${fieldSuffix}^${weight}" );
+		}
+
 		$fields = array();
 
 		// Only title and redirect support near_match so skip it for everything else
+		$titleWeight = $weight * $wgCirrusSearchWeights[ 'title' ];
+		$redirectWeight = $weight * $wgCirrusSearchWeights[ 'redirect' ];
 		if ( $fieldSuffix === '.near_match' ) {
 			$fields[] = "title${fieldSuffix}^${titleWeight}";
 			$fields[] = "redirect.title${fieldSuffix}^${redirectWeight}";
-			return $fields;
-		}
-		if ( $wgCirrusSearchAllFields[ 'use' ] && $allFieldAllowed ) {
-			$fields[] = "all${fieldSuffix}^${weight}";
 			return $fields;
 		}
 		$fields[] = "title${fieldSuffix}^${titleWeight}";
@@ -1287,7 +1321,7 @@ MVEL;
 		if ( $this->boostLinks ) {
 			$incomingLinks = "(doc['incoming_links'].isEmpty() ? 0 : doc['incoming_links'].value)";
 			$scoreBoostMvel = "log10($incomingLinks + 2)";
-			$functionScore->addScriptScoreFunction( new \Elastica\Script( $scoreBoostMvel ) );
+			$functionScore->addScriptScoreFunction( new \Elastica\Script( $scoreBoostMvel, null, 'mvel' ) );
 			$useFunctionScore = true;
 		}
 
@@ -1304,7 +1338,7 @@ MVEL;
 			// p(e^ct - 1) + 1 which is easier to calculate than, but reduces to 1 - p + pe^ct
 			// Which breaks the score into an unscaled portion (1 - p) and a scaled portion (p)
 			$lastUpdateDecayMvel = "$exponentialDecayMvel + 1";
-			$functionScore->addScriptScoreFunction( new \Elastica\Script( $lastUpdateDecayMvel ) );
+			$functionScore->addScriptScoreFunction( new \Elastica\Script( $lastUpdateDecayMvel, null, 'mvel' ) );
 			$useFunctionScore = true;
 		}
 

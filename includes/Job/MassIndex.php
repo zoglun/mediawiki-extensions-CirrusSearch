@@ -1,6 +1,7 @@
 <?php
 
-namespace CirrusSearch;
+namespace CirrusSearch\Job;
+use \CirrusSearch\Updater;
 use \Title;
 use \WikiPage;
 
@@ -23,7 +24,7 @@ use \WikiPage;
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  * http://www.gnu.org/copyleft/gpl.html
  */
-class MassIndexJob extends Job {
+class MassIndex extends Job {
 	public static function build( $pages, $updateFlags ) {
 		// Strip $pages down to PrefixedDBKeys so we don't put a ton of stuff in the job queue.
 		$pageDBKeys = array();
@@ -32,7 +33,7 @@ class MassIndexJob extends Job {
 		}
 
 		// We don't have a "title" for this job so we use the Main Page because it exists.
-		return new MassIndexJob( Title::newMainPage(), array(
+		return new self( Title::newMainPage(), array(
 			'pageDBKeys' => $pageDBKeys,
 			'updateFlags' => $updateFlags,
 		) );
