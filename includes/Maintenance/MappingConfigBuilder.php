@@ -182,7 +182,7 @@ class MappingConfigBuilder {
 			$config[ 'properties' ][ 'all_near_match' ] = array(
 				'type' => 'string',
 				'analyzer' => 'near_match',
-				'index_options' => 'docs',
+				'index_options' => 'freqs',
 				'position_offset_gap' => self::POSITION_OFFSET_GAP,
 				'norms' => array( 'enabled' => false ),
 			);
@@ -198,7 +198,7 @@ class MappingConfigBuilder {
 	}
 
 	/**
-	 * Setup copy_to for some fields to $destionation.
+	 * Setup copy_to for some fields to $destination.
 	 * @param array $config to modify
 	 * @param array $fields field name to number of times copied
 	 * @param string $destination destination of the copy
@@ -206,6 +206,8 @@ class MappingConfigBuilder {
 	 */
 	private function setupCopyTo( $config, $fields, $destination ) {
 		foreach ( $fields as $field => $weight ) {
+			// Note that weights this causes weights that are not whole numbers to be rounded up.
+			// We're ok with that because we don't have a choice.
 			for ( $r = 0; $r < $weight; $r++ ) {
 				if ( $field === 'redirect' ) {
 					// Redirect is in a funky place
