@@ -96,6 +96,7 @@ class Jenkins {
 
 	public static function recyclePruneAndUndelayJobs( $special, $subpage ) {
 		$jobsToUndelay = array(
+			'cirrusSearchIncomingLinkCount',
 			'cirrusSearchLinksUpdateSecondary',
 			'cirrusSearchLinksUpdate',
 			'cirrusSearchLinksUpdatePrioritized'

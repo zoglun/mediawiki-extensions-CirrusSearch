@@ -506,6 +506,7 @@ $wgAutoloadClasses['CirrusSearch\Hooks'] = $includes . 'Hooks.php';
 $wgAutoloadClasses['CirrusSearch\InterwikiSearcher'] = $includes . 'InterwikiSearcher.php';
 $wgAutoloadClasses['CirrusSearch\Job\Job'] = $jobsDir . 'Job.php';
 $wgAutoloadClasses['CirrusSearch\Job\DeletePages'] = $jobsDir . 'DeletePages.php';
+$wgAutoloadClasses['CirrusSearch\Job\IncomingLinkCount'] = $jobsDir . 'IncomingLinkCount.php';
 $wgAutoloadClasses['CirrusSearch\Job\LinksUpdate'] = $jobsDir . 'LinksUpdate.php';
 $wgAutoloadClasses['CirrusSearch\Job\LinksUpdateSecondary'] = $jobsDir . 'LinksUpdateSecondary.php';
 $wgAutoloadClasses['CirrusSearch\Job\MassIndex'] = $jobsDir . 'MassIndex.php';
@@ -570,6 +571,7 @@ $wgExtensionMessagesFiles['CirrusSearch'] = __DIR__ . '/CirrusSearch.i18n.php';
  * Jobs
  */
 $wgJobClasses[ 'cirrusSearchDeletePages' ] = 'CirrusSearch\Job\DeletePages';
+$wgJobClasses[ 'cirrusSearchIncomingLinkCount' ] = 'CirrusSearch\Job\IncomingLinkCount';
 $wgJobClasses[ 'cirrusSearchLinksUpdate' ] = 'CirrusSearch\Job\LinksUpdate';
 $wgJobClasses[ 'cirrusSearchLinksUpdatePrioritized' ] = 'CirrusSearch\Job\LinksUpdate';
 $wgJobClasses[ 'cirrusSearchLinksUpdateSecondary' ] = 'CirrusSearch\Job\LinksUpdateSecondary';
