@@ -1,3 +1,32 @@
+Temporary PHP7 elasticsearch fix for Mediawiki 1.26.2
+
+Notice this is not recommend for production environment! Strongly suggest you wait till MW1.27 release and use new version extension.
+
+What I did:
+Download 1.26 stable extension relese from https://www.mediawiki.org/wiki/Special:ExtensionDistributor/CirrusSearch & https://www.mediawiki.org/wiki/Special:ExtensionDistributor/Elastica
+
+Use this version Elastica and put then under /wiki/extensions/Elastica/Elastica
+https://github.com/ruflin/Elastica/commit/e078baafe853fa7db7b0381f5280f775af17b16c 
+
+Modify /wiki/extensions/CirrusSearch/includes/Searcher.php to remove any Class that PHP7 does not support.
+
+
+
+
+Now this extension barely work with Mediawiki 1.26.2 & Elasticsearch1.7.1 now.
+
+
+
+
+
+
+
+
+
+
+
+
+
 MediaWiki extension: CirrusSearch
 ---------------------------------
 
